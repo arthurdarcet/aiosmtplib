@@ -79,10 +79,6 @@ class SMTP:
         self.writer = None
         self.ready = asyncio.Future(loop=self.loop)
 
-        connected = asyncio.async(self.connect())
-        if not self.loop.is_running():
-            self.loop.run_until_complete(connected)
-
     @asyncio.coroutine
     def connect(self):
         """Open asyncio streams to the server and check response status.
