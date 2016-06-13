@@ -83,6 +83,8 @@ class SMTP:
         """
         if self.writer:
             self.writer.close()
+        self.last_helo_status = (None, None)
+
         try:
             self.reader, self.writer = yield from asyncio.open_connection(
                 host=self.hostname, port=self.port)
@@ -665,3 +667,23 @@ class SMTP:
         result = yield from self.sendmail(sender, recipients, flat_message,
                                           mail_options, rcpt_options)
         return result
+
+
+class AutoReconnectingSMTP(SMTP):
+    @asyncio.coroutine
+    def login(self, *args):
+        self._login_credentials = args
+        return (yield from super().login(*args)
+
+    @asyncio.coroutine
+    def send_data(self, *args, **kwargs):
+        try:
+            return (yield from super().send_data(*args, **kwargs))
+        except ConnectionResetError as exc:
+            try:
+                yield from super().connect()
+                if hasattr(self, '_login_credentials'):
+                    yield from super().login(*self._login_credentials)
+                return (yield from super().send_data(*args, **kwargs))
+            except:
+                raise exc
