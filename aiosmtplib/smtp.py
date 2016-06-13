@@ -699,7 +699,12 @@ class AutoReconnectingSMTP(SMTP):
             yield from self.connect()
         try:
             return (yield from super()._sendmail(*args, **kwargs))
-        except SMTPServerDisconnected as exc:
+        except (
+            BrokenPipeError,
+            ConnectionResetError,
+            SMTPSenderRefused,
+            SMTPServerDisconnected,
+        ) as exc:
             if self.debug:
                 logger.debug('SMTP connection lost, reconnecting')
             try:
