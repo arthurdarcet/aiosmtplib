@@ -215,13 +215,10 @@ class SMTP:
 
         Raises SMTPResponseException for codes > 500.
         """
-        code = -1
+        code = SMTP_NO_CONNECTION
         response = []
         while True:
-            try:
-                line = yield from self.reader.readline()
-            except ConnectionResetError as exc:
-                raise SMTPServerDisconnected(exc)
+            line = yield from self.reader.readline()
 
             if not line:
                 break
@@ -242,6 +239,9 @@ class SMTP:
 
             if line[3:4] != b"-":
                 break
+
+        if code == SMTP_NO_CONNECTION:
+            raise SMTPServerDisconnected('Server did not respond')
 
         message = "\n".join(response)
         if self.debug:
@@ -304,13 +304,8 @@ class SMTP:
         """
         hostname = hostname or self.local_hostname
         code, message = yield from self.execute_command("ehlo", hostname)
-        # According to RFC1869 some (badly written)
-        # MTA's will disconnect on an ehlo. Toss an exception if
-        # that happens -ddm
-        if code == SMTP_NO_CONNECTION and len(message) == 0:
-            self.close()
-            raise SMTPServerDisconnected("Server not connected")
-        elif code == SMTP_COMPLETED:
+
+        if code == SMTP_COMPLETED:
             self.parse_esmtp_response(code, message)
 
         self.last_helo_status = (code, message)
@@ -704,7 +699,7 @@ class AutoReconnectingSMTP(SMTP):
             yield from self.connect()
         try:
             return (yield from super()._sendmail(*args, **kwargs))
-        except ConnectionResetError as exc:
+        except SMTPServerDisconnected as exc:
             if self.debug:
                 logger.debug('SMTP connection lost, reconnecting')
             try:
