@@ -76,6 +76,7 @@ class SMTP:
         self.last_helo_status = (None, None)
         self.reader = None
         self.writer = None
+        self.lock = asyncio.Lock()
 
     @asyncio.coroutine
     def connect(self):
@@ -514,7 +515,7 @@ class SMTP:
         return code, response
 
     @asyncio.coroutine
-    def sendmail(self, sender, recipients, message, mail_options=[],
+    def _sendmail(self, sender, recipients, message, mail_options=[],
                  rcpt_options=[]):
         """This command performs an entire mail transaction.
 
@@ -611,6 +612,11 @@ class SMTP:
         return errors
 
     @asyncio.coroutine
+    def sendmail(self, *args, **kwargs):
+        with (yield from self.lock):
+            return (yield from self._sendmail(*args, **kwargs))
+
+    @asyncio.coroutine
     def send_message(self, message, sender=None, recipients=None,
                      mail_options=[], rcpt_options=[]):
         """Converts message to a bytestring and passes it to sendmail.
@@ -693,15 +699,16 @@ class AutoReconnectingSMTP(SMTP):
             yield from self.login(*self._login_credentials)
 
     @asyncio.coroutine
-    def send_data(self, *args, **kwargs):
-        if not self.writer:
+    def _sendmail(self, *args, **kwargs):
+        if self.writer is None:
             yield from self.connect()
-
         try:
-            return (yield from super().send_data(*args, **kwargs))
+            return (yield from super()._sendmail(*args, **kwargs))
         except ConnectionResetError as exc:
+            if self.debug:
+                logger.debug('SMTP connection lost, reconnecting')
             try:
                 yield from self.connect()
-                return (yield from super().send_data(*args, **kwargs))
+                return (yield from super()._sendmail(*args, **kwargs))
             except:
                 raise exc
