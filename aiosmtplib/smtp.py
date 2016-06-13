@@ -81,6 +81,8 @@ class SMTP:
     def connect(self):
         """Open asyncio streams to the server and check response status.
         """
+        if self.writer:
+            self.writer.close()
         try:
             self.reader, self.writer = yield from asyncio.open_connection(
                 host=self.hostname, port=self.port)
@@ -94,14 +96,6 @@ class SMTP:
             raise SMTPConnectError(code, message)
         if self.debug:
             logger.debug("connected: %s %s", code, message)
-
-    @asyncio.coroutine
-    def reconnect(self):
-        """Clear the current connection, and start it again.
-        """
-        if self.writer:
-            self.writer.close()
-        yield from self.connect()
 
     @asyncio.coroutine
     def login(self, user, password):
@@ -170,14 +164,6 @@ class SMTP:
         yield from self.quit()
         if self.writer:
             self.writer.close()
-
-    @property
-    def is_connected(self):
-        """Check connection status.
-
-        Returns bool
-        """
-        return bool(self.reader) and bool(self.writer)
 
     @property
     def supports_esmtp(self):
@@ -281,15 +267,7 @@ class SMTP:
 
         self.writer.write(data)
         # Ensure the write finishes
-        try:
-            yield from self.writer.drain()
-        except ConnectionResetError as exc:
-            # Try a simple reconnect and resend
-            try:
-                yield from self.reconnect()
-                yield from self.send_data(data)
-            except:
-                raise exc
+        yield from self.writer.drain()
 
     @asyncio.coroutine
     def helo(self, hostname=None):
