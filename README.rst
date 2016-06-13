@@ -11,26 +11,27 @@ Basic usage::
 
     import asyncio
     import aiosmtplib
-    loop = asyncio.get_event_loop()
-    smtp = aiosmtplib.SMTP(hostname='localhost', port=25, loop=loop)
-    
+
     @asyncio.coroutine
     def send_a_message():
         sender = 'root@localhost'
         recipient = 'somebody@localhost'
         message = "Hello World"
+
+        smtp = aiosmtplib.SMTP(hostname='localhost', port=25)
+        yield from smtp.connect()
+        # Optionnally, login:
+        yield from smtp.login('USERNAME', 'PASSWORD')
         yield from smtp.sendmail(sender, [recipient], message)
-    
-    asyncio.async(send_a_message())
-    loop.run_forever()
+        yield from smtp.close()
+
+    asyncio.get_event_loop().run_until_complete(send_a_message())
 
 
 Connecting to an SMTP server
 ----------------------------
 
-Use an instance of the `SMTP` class to connect to a server. Note that if the
-event loop used to initialize the class is not currently running, it will be
-started in order to connect.
+Use an instance of the `SMTP` class to connect to a server.
 
 Sending messages
 ----------------

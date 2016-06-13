@@ -68,20 +68,14 @@ class SMTP:
 
     """SMTP client."""
 
-    def __init__(self, hostname='localhost', port=25, loop=None, debug=False):
+    def __init__(self, hostname='localhost', port=25, debug=False):
         self.hostname = hostname
         self.port = port
-        self.loop = loop or asyncio.get_event_loop()
         self.debug = debug
         self.esmtp_extensions = {}
         self.last_helo_status = (None, None)
         self.reader = None
         self.writer = None
-        self.ready = asyncio.Future(loop=self.loop)
-
-        connected = asyncio.async(self.connect())
-        if not self.loop.is_running():
-            self.loop.run_until_complete(connected)
 
     @asyncio.coroutine
     def connect(self):
@@ -100,17 +94,13 @@ class SMTP:
             raise SMTPConnectError(code, message)
         if self.debug:
             logger.debug("connected: %s %s", code, message)
-        self.ready.set_result(True)
 
     @asyncio.coroutine
     def reconnect(self):
         """Clear the current connection, and start it again.
         """
-        if self.ready:
-            self.ready.cancel()
         if self.writer:
             self.writer.close()
-        self.ready = asyncio.Future(loop=self.loop)
         yield from self.connect()
 
     @asyncio.coroutine
@@ -188,14 +178,6 @@ class SMTP:
         Returns bool
         """
         return bool(self.reader) and bool(self.writer)
-
-    @property
-    def is_ready(self):
-        """Check for ready message recieved from server.
-
-        Returns bool
-        """
-        return self.ready.done()
 
     @property
     def supports_esmtp(self):
