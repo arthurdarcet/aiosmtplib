@@ -28,7 +28,8 @@ Basic usage::
     asyncio.get_event_loop().run_until_complete(send_a_message())
 
 
-Or, with Python 3.5:
+Or, with Python 3.5::
+
     import asyncio
     import aiosmtplib
 
@@ -45,7 +46,8 @@ Or, with Python 3.5:
     asyncio.get_event_loop().run_until_complete(send_a_message())
 
 
-And if you need a long-running connection:
+And if you need a long-running connection::
+
     import asyncio
     import aiosmtplib
 
