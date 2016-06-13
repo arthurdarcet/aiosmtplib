@@ -100,6 +100,15 @@ class SMTP:
             logger.debug("connected: %s %s", code, message)
 
     @asyncio.coroutine
+    def __aenter__(self):
+        yield from self.connect()
+        return self
+
+    @asyncio.coroutine
+    def __aexit__(self, *_):
+        yield from self.close()
+
+    @asyncio.coroutine
     def login(self, user, password):
         def encode_cram_md5(challenge, user, password):
             challenge = base64.b64decode(challenge)
@@ -670,20 +679,29 @@ class SMTP:
 
 
 class AutoReconnectingSMTP(SMTP):
+    def __init__(self, *args, username=None, password=None, **kwargs):
+        if username is not None:
+            self._login_credentials = (username, password)
+        else:
+            self._login_credentials = None
+        super().__init__(*args, **kwargs)
+
     @asyncio.coroutine
-    def login(self, *args):
-        self._login_credentials = args
-        return (yield from super().login(*args)
+    def connect(self):
+        yield from super().connect()
+        if self._login_credentials:
+            yield from self.login(*self._login_credentials)
 
     @asyncio.coroutine
     def send_data(self, *args, **kwargs):
+        if not self.writer:
+            yield from self.connect()
+
         try:
             return (yield from super().send_data(*args, **kwargs))
         except ConnectionResetError as exc:
             try:
-                yield from super().connect()
-                if hasattr(self, '_login_credentials'):
-                    yield from super().login(*self._login_credentials)
+                yield from self.connect()
                 return (yield from super().send_data(*args, **kwargs))
             except:
                 raise exc
